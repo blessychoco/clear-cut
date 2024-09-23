@@ -8,6 +8,7 @@
 (define-constant err-invalid-recipient (err u103))
 (define-constant err-transfer-failed (err u104))
 (define-constant err-recipient-not-found (err u105))
+(define-constant err-distribution-failed (err u106))
 
 ;; Define data maps
 (define-map royalty-recipients principal uint)
@@ -47,21 +48,18 @@
 ;; Private function to shift recipients after removal
 (define-private (shift-recipients (removed-index uint))
   (let ((num-recip (var-get num-recipients)))
-    (map shift-single-recipient 
-         (unwrap-panic (slice? (map-to-list) removed-index (- num-recip u1))))))
+    (fold shift-single-recipient 
+          (list removed-index (- num-recip u1))
+          true)))
 
 ;; Helper function to shift a single recipient
-(define-private (shift-single-recipient (index uint))
+(define-private (shift-single-recipient (index uint) (last bool))
   (match (map-get? recipient-list (+ index u1))
     next-recipient (begin
       (map-set recipient-list index next-recipient)
       (map-set recipient-indices next-recipient index)
-      true)
-    false))
-
-;; Helper function to create a list of indices to shift
-(define-private (map-to-list)
-  (list u0 u1 u2 u3 u4 u5 u6 u7 u8 u9))
+      last)
+    last))
 
 ;; Public function to distribute royalties to a single recipient
 (define-public (distribute-to-recipient (recipient-index uint) (amount uint))
@@ -81,6 +79,28 @@
                 error (err err-transfer-failed))
               (ok u0)))
         (err err-recipient-not-found)))))
+
+;; New function to distribute royalties to all recipients in a single transaction
+(define-public (batch-distribute-royalties (total-amount uint))
+  (let ((num-recip (var-get num-recipients)))
+    (if (is-eq num-recip u0)
+      (err err-no-recipients)
+      (let ((result (fold distribute-to-recipient-fold 
+                          (list u0 (- num-recip u1)) 
+                          (tuple (amount total-amount) (total-distributed u0) (success true)))))
+        (if (get success result)
+          (begin
+            (map-set total-distributed block-height (get total-distributed result))
+            (ok (get total-distributed result)))
+          (err err-distribution-failed))))))
+
+;; Helper function to distribute to a single recipient within the fold
+(define-private (distribute-to-recipient-fold (index uint) (state (tuple (amount uint) (total-distributed uint) (success bool))))
+  (if (get success state)
+    (match (distribute-to-recipient index (get amount state))
+      distributed-amount (merge state { total-distributed: (+ (get total-distributed state) distributed-amount) })
+      error (merge state { success: false }))
+    state))
 
 ;; Read-only function to get royalty percentage for a recipient
 (define-read-only (get-royalty-percentage (recipient principal))
