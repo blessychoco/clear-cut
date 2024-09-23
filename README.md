@@ -81,4 +81,6 @@ In this example, we set a 30% royalty for a recipient and then distribute 1,000,
 - The contract uses `as-contract` when transferring STX to ensure it's using its own balance.
 - Input validation is performed to prevent invalid percentages or recipient indices.
 
-Always review and test thoroughly before deploying to mainnet.
+## Author
+
+Blessing Eze
