@@ -33,7 +33,8 @@
 
 ;; Public function to remove a recipient
 (define-public (remove-recipient (recipient principal))
-  (if (is-eq tx-sender contract-owner)
+  (begin
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
     (match (map-get? recipient-indices recipient)
       index (begin
         (map-delete royalty-recipients recipient)
@@ -41,14 +42,13 @@
         (shift-recipients index)
         (var-set num-recipients (- (var-get num-recipients) u1))
         (ok true))
-      (err err-recipient-not-found))
-    (err err-owner-only)))
+      (ok false))))
 
 ;; Private function to shift recipients after removal
 (define-private (shift-recipients (removed-index uint))
   (let ((num-recip (var-get num-recipients)))
     (map shift-single-recipient 
-         (map-to-list removed-index (- num-recip u1)))))
+         (unwrap-panic (slice? (map-to-list) removed-index (- num-recip u1))))))
 
 ;; Helper function to shift a single recipient
 (define-private (shift-single-recipient (index uint))
@@ -60,9 +60,8 @@
     false))
 
 ;; Helper function to create a list of indices to shift
-(define-private (map-to-list (start uint) (end uint))
-  (list start (+ start u1) (+ start u2) (+ start u3) (+ start u4)
-        (+ start u5) (+ start u6) (+ start u7) (+ start u8) (+ start u9)))
+(define-private (map-to-list)
+  (list u0 u1 u2 u3 u4 u5 u6 u7 u8 u9))
 
 ;; Public function to distribute royalties to a single recipient
 (define-public (distribute-to-recipient (recipient-index uint) (amount uint))
@@ -74,14 +73,14 @@
           (let ((percentage (default-to u0 (map-get? royalty-recipients recipient)))
                 (payment (/ (* amount percentage) u100)))
             (if (> payment u0)
-              (begin
-                (map-set total-distributed block-height
-                  (+ (default-to u0 (map-get? total-distributed block-height)) payment))
-                (match (as-contract (stx-transfer? payment tx-sender recipient))
-                  success (ok payment)
-                  error (err err-transfer-failed)))
+              (match (as-contract (stx-transfer? payment tx-sender recipient))
+                success (begin
+                  (map-set total-distributed block-height
+                    (+ (default-to u0 (map-get? total-distributed block-height)) payment))
+                  (ok payment))
+                error (err err-transfer-failed))
               (ok u0)))
-        (err err-invalid-recipient)))))
+        (err err-recipient-not-found)))))
 
 ;; Read-only function to get royalty percentage for a recipient
 (define-read-only (get-royalty-percentage (recipient principal))
