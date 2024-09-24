@@ -1,4 +1,4 @@
-;; Royalty Distribution Smart Contract
+;; Royalty Distribution Smart Contract with Recurring Distributions
 
 ;; Define constants
 (define-constant contract-owner tx-sender)
@@ -9,6 +9,7 @@
 (define-constant err-transfer-failed (err u104))
 (define-constant err-recipient-not-found (err u105))
 (define-constant err-distribution-failed (err u106))
+(define-constant err-too-soon (err u107))
 
 ;; Define data maps
 (define-map royalty-recipients principal uint)
@@ -16,8 +17,10 @@
 (define-map recipient-indices principal uint)
 (define-map total-distributed uint uint)
 
-;; Define a variable to keep track of the number of recipients
+;; Define variables to keep track of the number of recipients and distribution timing
 (define-data-var num-recipients uint u0)
+(define-data-var distribution-interval uint u1440) ;; e.g., once every 1440 blocks (~1 day)
+(define-data-var last-distribution-block uint u0)
 
 ;; Public function to set royalty percentage for a recipient
 (define-public (set-royalty-percentage (recipient principal) (percentage uint))
@@ -101,6 +104,32 @@
       distributed-amount (merge state { total-distributed: (+ (get total-distributed state) distributed-amount) })
       error (merge state { success: false }))
     state))
+
+;; Automated recurring distribution function
+(define-public (automated-distribute (total-amount uint))
+  (let ((current-block block-height)
+        (last-distribution (var-get last-distribution-block))
+        (interval (var-get distribution-interval)))
+    (if (>= (- current-block last-distribution) interval)
+      (begin
+        (var-set last-distribution-block current-block)
+        (batch-distribute-royalties total-amount))
+      (err err-too-soon))))
+
+;; Public function to adjust the distribution interval
+(define-public (set-distribution-interval (new-interval uint))
+  (begin
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    (var-set distribution-interval new-interval)
+    (ok new-interval)))
+
+;; Read-only function to get the current distribution interval
+(define-read-only (get-distribution-interval)
+  (ok (var-get distribution-interval)))
+
+;; Read-only function to get the last distribution block
+(define-read-only (get-last-distribution-block)
+  (ok (var-get last-distribution-block)))
 
 ;; Read-only function to get royalty percentage for a recipient
 (define-read-only (get-royalty-percentage (recipient principal))
