@@ -46,17 +46,22 @@ This Clarity smart contract manages the distribution of royalties to multiple re
 ## Error Codes
 
 - `err-owner-only (u100)`: Only the contract owner can perform this action
-- `err-invalid-percentage (u101)`: The percentage must be between 0 and 100
-- `err-no-recipients (u102)`: There are no recipients set
-- `err-invalid-recipient (u103)`: The recipient index is invalid
-- `err-transfer-failed (u104)`: The STX transfer failed
+- err-owner-only (u100): Only the contract owner can perform this action
+- err-invalid-percentage (u101): The percentage must be between 0 and 100
+- err-no-recipients (u102): There are no recipients set
+- err-invalid-recipient (u103): The recipient index is invalid
+- err-transfer-failed (u104): The STX transfer failed
+- err-distribution-failed (u105): The batch distribution failed
+- err-invalid-interval (u106): The interval must be a positive value
 
 ## Usage
 
 1. Deploy the contract to the Stacks blockchain.
-2. As the contract owner, use `set-royalty-percentage` to set percentages for each recipient.
-3. To distribute royalties, call `distribute-to-recipient` for each recipient with the total amount to be distributed.
-4. Use the read-only functions to query the contract's state at any time.
+2. As the contract owner, use set-royalty-percentage to set percentages for each recipient.
+3. To remove a recipient, call remove-recipient.
+4. To distribute royalties, call distribute-to-recipient for individual recipients or batch-distribute-royalties for all recipients with the total amount to be distributed.
+5. Use the read-only functions to query the contract's state at any time.
+6. To set automated recurring distributions, use set-distribution-interval with the desired interval.
 
 ## Example
 
